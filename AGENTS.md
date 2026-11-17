@@ -21,16 +21,19 @@
    - 每个特性的代码提交必须严格对齐其 Spec 及对应的 Phase 任务边界。
    - **杜绝无关文件**：提交前必须核对暂存区，严禁夹带未关联的临时文件、构建产物、调试断点或无关配置。
    - **杜绝漏提文件**：必须保证该特性涉及的所有必要文件（类型契约、核心实现、单测、Spec更新等）一次性完整原子提交。
+6. **严禁包含绝对路径 (Strictly Relative Paths Only)**：
+   - 项目内所有 Markdown 文档、超链接、代码与注释中，**绝对禁止**出现任何本地主机的绝对盘符路径（如 `C:\...`、`K:\...` 或 `file:///...`）。
+   - 一律统一使用相对于项目根目录的相对路径（如 `specs/...`、`src/...`），严格防范本地文件系统拓扑泄漏。
 
 ---
 
 ## 📂 规格文件规范 (Specification Hierarchy)
 
-- **功能规格模板**：[01_feature_spec.template.md](file:///k:/Antigravity-workspaces/SnoozeDD/specs/templates/01_feature_spec.template.md)
-- **技术架构模板**：[02_technical_design.template.md](file:///k:/Antigravity-workspaces/SnoozeDD/specs/templates/02_technical_design.template.md)
-- **任务拆解模板**：[03_implementation_plan.template.md](file:///k:/Antigravity-workspaces/SnoozeDD/specs/templates/03_implementation_plan.template.md)
-- **缺陷修复模板**：[04_bug_fix_spec.template.md](file:///k:/Antigravity-workspaces/SnoozeDD/specs/templates/04_bug_fix_spec.template.md)
-- **规格中心指引**：[specs/README.md](file:///k:/Antigravity-workspaces/SnoozeDD/specs/README.md)
+- **功能规格模板**：[01_feature_spec.template.md](specs/templates/01_feature_spec.template.md)
+- **技术架构模板**：[02_technical_design.template.md](specs/templates/02_technical_design.template.md)
+- **任务拆解模板**：[03_implementation_plan.template.md](specs/templates/03_implementation_plan.template.md)
+- **缺陷修复模板**：[04_bug_fix_spec.template.md](specs/templates/04_bug_fix_spec.template.md)
+- **规格中心指引**：[specs/README.md](specs/README.md)
 
 ---
 
