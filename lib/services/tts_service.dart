@@ -86,9 +86,24 @@ class TtsService {
     final text = _speakQueue.removeAt(0);
     _isSpeaking = true;
 
+    // 6秒超时安全兜底，防止浏览器未派发 onComplete 导致队列永久阻塞
+    Timer(const Duration(seconds: 6), () {
+      if (_isSpeaking) {
+        debugPrint('TTS timeout safety watchdog triggered, releasing queue.');
+        _isSpeaking = false;
+        _processNextInQueue(volume: volume);
+      }
+    });
+
     try {
+      await _flutterTts.stop();
+      // 在每次朗读前重新设置语言，防止 Web 端初次加载时语音列表尚未就绪
+      await _flutterTts.setLanguage("zh-CN");
+      await _flutterTts.setSpeechRate(kIsWeb ? 1.0 : 0.5);
       await _flutterTts.setVolume(volume);
-      await _flutterTts.speak(text);
+      
+      final result = await _flutterTts.speak(text);
+      debugPrint('TTS speak result for "$text": $result');
     } catch (e) {
       debugPrint('Failed to speak text: $e');
       _isSpeaking = false;

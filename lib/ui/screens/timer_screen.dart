@@ -89,8 +89,16 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     // 1. 播放轻柔提示音
     _chimeService.playChime(checkpoint.chimeSound, volume: _session.volume);
 
-    // 2. 离线 TTS 朗读自定义文本
-    _ttsService.speak(checkpoint.announcementText, volume: _session.volume);
+    // 2. 离线 TTS 朗读自定义文本 (若有伴随音，略微错开 700ms 避免声音混杂)
+    final delay = checkpoint.chimeSound != ChimeSoundType.none
+        ? const Duration(milliseconds: 700)
+        : Duration.zero;
+
+    Future.delayed(delay, () {
+      if (mounted) {
+        _ttsService.speak(checkpoint.announcementText, volume: _session.volume);
+      }
+    });
 
     // 3. 屏幕底部弹出轻量弱提醒条
     if (mounted) {

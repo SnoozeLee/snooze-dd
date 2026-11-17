@@ -22,10 +22,25 @@ class AudioChimeService {
   Future<void> playChime(ChimeSoundType soundType, {double volume = 0.6}) async {
     if (soundType == ChimeSoundType.none) return;
 
+    String fileName;
+    switch (soundType) {
+      case ChimeSoundType.gentleBell:
+        fileName = 'audio/gentle_bell.wav';
+        break;
+      case ChimeSoundType.waterDrop:
+        fileName = 'audio/water_drop.wav';
+        break;
+      case ChimeSoundType.singingBowl:
+        fileName = 'audio/singing_bowl.wav';
+        break;
+      case ChimeSoundType.none:
+        return;
+    }
+
     try {
+      await _player.stop();
       await _player.setVolume(volume);
-      // 后续可扩展加载本地 assets/audio/*.mp3
-      // 目前提供安全优雅的降级支持
+      await _player.play(AssetSource(fileName));
     } catch (e) {
       debugPrint('Failed to play chime: $e');
     }

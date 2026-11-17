@@ -79,7 +79,14 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
     final text = _textController.text.trim();
     final speakText = text.isNotEmpty ? text : '这是一条测试播报';
     _chimeService.playChime(_chimeSound);
-    _ttsService.speak(speakText);
+    final delay = _chimeSound != ChimeSoundType.none
+        ? const Duration(milliseconds: 700)
+        : Duration.zero;
+    Future.delayed(delay, () {
+      if (mounted) {
+        _ttsService.speak(speakText);
+      }
+    });
   }
 
   void _saveChanges() {
