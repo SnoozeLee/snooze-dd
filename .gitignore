@@ -55,3 +55,12 @@ Thumbs.db
 .idea/
 *.sublime-project
 *.sublime-workspace
+*.iml
+
+# Flutter / Dart specific
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+
