@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/checkpoint.dart';
 import '../../services/audio_chime_service.dart';
 import '../../services/tts_service.dart';
+import 'checkpoint_popover.dart';
 
 /// 多节点播报配置弹窗面板
 class CheckpointListSheet extends StatefulWidget {
@@ -195,6 +196,26 @@ class _CheckpointListSheetState extends State<CheckpointListSheet> {
                             horizontal: 16,
                             vertical: 4,
                           ),
+                          onTap: () {
+                            CheckpointPopover.show(
+                              context,
+                              checkpoint: cp,
+                              totalDurationSeconds: widget.totalDurationSeconds,
+                              onUpdated: (updatedCp) {
+                                setState(() {
+                                  _list[index] = updatedCp;
+                                  _list.sort((a, b) => b.offsetSeconds.compareTo(a.offsetSeconds));
+                                });
+                                widget.onCheckpointsChanged(_list);
+                              },
+                              onDeleted: () {
+                                setState(() {
+                                  _list.removeAt(index);
+                                });
+                                widget.onCheckpointsChanged(_list);
+                              },
+                            );
+                          },
                           leading: IconButton.filledTonal(
                             icon: const Icon(Icons.volume_up, size: 18),
                             tooltip: '测试声音',
