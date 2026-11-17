@@ -6,6 +6,8 @@ import '../../services/audio_chime_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/tts_service.dart';
 import '../widgets/checkpoint_list_sheet.dart';
+import '../widgets/checkpoint_popover.dart';
+import '../widgets/duration_picker_sheet.dart';
 import '../widgets/timer_dial.dart';
 
 /// SnoozeDD 核心计时与多节点播报主页面
@@ -120,13 +122,94 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   void _changeDuration(int minutes) {
     if (_status == TimerStatus.running) return;
 
-    final updated = _session.copyWith(totalDurationSeconds: minutes * 60);
+    final newTotalSeconds = minutes * 60;
+    if (_session.totalDurationSeconds == newTotalSeconds) return;
+
+    // 节点越界保护：超出新时长的节点自动停用
+    int disabledCount = 0;
+    final updatedCheckpoints = _session.checkpoints.map((cp) {
+      bool isOutOfRange = false;
+      if (cp.triggerType == CheckpointTriggerType.remaining &&
+          cp.offsetSeconds >= newTotalSeconds) {
+        isOutOfRange = true;
+      } else if (cp.triggerType == CheckpointTriggerType.elapsed &&
+          cp.offsetSeconds > newTotalSeconds) {
+        isOutOfRange = true;
+      }
+
+      if (isOutOfRange && cp.isEnabled) {
+        disabledCount++;
+        return cp.copyWith(isEnabled: false);
+      }
+      return cp;
+    }).toList();
+
+    final updated = _session.copyWith(
+      totalDurationSeconds: newTotalSeconds,
+      checkpoints: updatedCheckpoints,
+    );
+
     setState(() {
       _session = updated;
       _remainingSeconds = updated.totalDurationSeconds;
       _engine.updateSession(updated);
     });
     StorageService.saveSession(updated);
+
+    if (disabledCount > 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('有 $disabledCount 个节点超出新总时长范围，已自动停用'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openDurationPicker() async {
+    if (_status == TimerStatus.running) return;
+
+    final currentMinutes = (_session.totalDurationSeconds / 60).round();
+    final selected = await DurationPickerSheet.show(
+      context,
+      initialMinutes: currentMinutes,
+    );
+
+    if (selected != null && selected > 0) {
+      _changeDuration(selected);
+    }
+  }
+
+  void _openCheckpointPopover(Checkpoint checkpoint) {
+    CheckpointPopover.show(
+      context,
+      checkpoint: checkpoint,
+      totalDurationSeconds: _session.totalDurationSeconds,
+      onUpdated: (updatedCp) {
+        final newCheckpoints = _session.checkpoints.map((cp) {
+          return cp.id == updatedCp.id ? updatedCp : cp;
+        }).toList();
+
+        final updated = _session.copyWith(checkpoints: newCheckpoints);
+        setState(() {
+          _session = updated;
+          _engine.updateSession(updated);
+        });
+        StorageService.saveSession(updated);
+      },
+      onDeleted: () {
+        final newCheckpoints = _session.checkpoints
+            .where((cp) => cp.id != checkpoint.id)
+            .toList();
+
+        final updated = _session.copyWith(checkpoints: newCheckpoints);
+        setState(() {
+          _session = updated;
+          _engine.updateSession(updated);
+        });
+        StorageService.saveSession(updated);
+      },
+    );
   }
 
   void _openCheckpointsModal() {
@@ -162,6 +245,9 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final currentMinutes = (_session.totalDurationSeconds / 60).round();
+    const standardPresets = [15, 25, 45, 60];
+    final isCustomDuration = !standardPresets.contains(currentMinutes);
 
     return Scaffold(
       appBar: AppBar(
@@ -179,37 +265,61 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            // 时长快速选择预设
+            // 时长快速选择预设与自定义滚轮入口
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: [15, 25, 45, 60].map((mins) {
-                    final isSelected =
-                        _session.totalDurationSeconds == mins * 60;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: FilterChip(
-                        selected: isSelected,
-                        label: Text('$mins 分钟'),
-                        onSelected: _status == TimerStatus.running
-                            ? null
-                            : (_) => _changeDuration(mins),
+                  children: [
+                    ...standardPresets.map((mins) {
+                      final isSelected = currentMinutes == mins;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          selected: isSelected,
+                          label: Text('$mins 分钟'),
+                          onSelected: _status == TimerStatus.running
+                              ? null
+                              : (_) => _changeDuration(mins),
+                        ),
+                      );
+                    }),
+                    if (isCustomDuration)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          selected: true,
+                          label: Text('$currentMinutes 分钟'),
+                          onSelected: _status == TimerStatus.running
+                              ? null
+                              : (_) => _openDurationPicker(),
+                        ),
                       ),
-                    );
-                  }).toList(),
+                    ActionChip(
+                      avatar: const Icon(Icons.tune, size: 16),
+                      label: const Text('自定义...'),
+                      onPressed: _status == TimerStatus.running
+                          ? null
+                          : _openDurationPicker,
+                    ),
+                  ],
                 ),
               ),
             ),
             const Spacer(),
-            // 环形主表盘
+            // 环形主表盘 (支持圆弧节点可视化与点击)
             TimerDial(
               remainingSeconds: _remainingSeconds,
               totalSeconds: _session.totalDurationSeconds,
               progress: _progress,
               isRunning: _status == TimerStatus.running,
               statusText: _latestAnnouncement,
+              checkpoints: _session.checkpoints,
+              triggeredCheckpointIds: _engine.triggeredCheckpointIds,
+              onCheckpointTap: _openCheckpointPopover,
+              onDialCenterTap:
+                  _status == TimerStatus.running ? null : _openDurationPicker,
             ),
             const SizedBox(height: 24),
             // 节点摘要展示
