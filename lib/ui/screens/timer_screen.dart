@@ -9,6 +9,7 @@ import '../widgets/checkpoint_list_sheet.dart';
 import '../widgets/checkpoint_popover.dart';
 import '../widgets/duration_picker_sheet.dart';
 import '../widgets/timer_dial.dart';
+import '../widgets/volume_setting_dialog.dart';
 
 /// SnoozeDD 核心计时与多节点播报主页面
 class TimerScreen extends StatefulWidget {
@@ -193,6 +194,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
       context,
       checkpoint: checkpoint,
       totalDurationSeconds: _session.totalDurationSeconds,
+      volume: _session.volume,
       onUpdated: (updatedCp) {
         final newCheckpoints = _session.checkpoints.map((cp) {
           return cp.id == updatedCp.id ? updatedCp : cp;
@@ -216,6 +218,46 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
           _engine.updateSession(updated);
         });
         StorageService.saveSession(updated);
+      },
+    );
+  }
+
+  IconData _getVolumeIcon(double volume) {
+    final level = VolumeLevel.fromScalar(volume);
+    switch (level) {
+      case VolumeLevel.level1:
+        return Icons.volume_mute;
+      case VolumeLevel.level2:
+      case VolumeLevel.level3:
+        return Icons.volume_down;
+      case VolumeLevel.level4:
+      case VolumeLevel.level5:
+        return Icons.volume_up;
+    }
+  }
+
+  void _openVolumeDialog() {
+    VolumeSettingDialog.show(
+      context,
+      currentVolume: _session.volume,
+      onVolumeChanged: (newVolume) {
+        final updated = _session.copyWith(volume: newVolume);
+        setState(() {
+          _session = updated;
+          _engine.updateSession(updated);
+        });
+        StorageService.saveSession(updated);
+
+        final lvl = VolumeLevel.fromScalar(newVolume);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('已设置应用内音量为 ${lvl.label}'),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       },
     );
   }
@@ -262,6 +304,11 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
         title: Text(_session.name),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: Icon(_getVolumeIcon(_session.volume)),
+            tooltip: '应用内音量设置 (${VolumeLevel.fromScalar(_session.volume).label})',
+            onPressed: _openVolumeDialog,
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_active_outlined),
             tooltip: '配置提醒节点',

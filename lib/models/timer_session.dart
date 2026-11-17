@@ -13,6 +13,30 @@ enum TimerStatus {
   completed,
 }
 
+/// 应用内 5 级离散独立音量等级
+enum VolumeLevel {
+  level1(1, 0.20, '1级 (20%)', '极轻柔，适合耳机或静心冥想'),
+  level2(2, 0.40, '2级 (40%)', '柔和，适合安静书房或夜间小憩'),
+  level3(3, 0.60, '3级 (60%)', '适中，标准平衡伴随音量'),
+  level4(4, 0.80, '4级 (80%)', '清晰，日常专注默认推荐'),
+  level5(5, 1.00, '5级 (100%)', '饱满响亮，适合外放或有背景音环境');
+
+  final int level;
+  final double scalar;
+  final String label;
+  final String description;
+
+  const VolumeLevel(this.level, this.scalar, this.label, this.description);
+
+  static VolumeLevel fromScalar(double scalar) {
+    if (scalar <= 0.30) return VolumeLevel.level1;
+    if (scalar <= 0.50) return VolumeLevel.level2;
+    if (scalar <= 0.70) return VolumeLevel.level3;
+    if (scalar <= 0.90) return VolumeLevel.level4;
+    return VolumeLevel.level5;
+  }
+}
+
 /// 计时器会话与参数配置模型
 class TimerSession {
   final String id;

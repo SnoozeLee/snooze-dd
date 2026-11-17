@@ -7,6 +7,7 @@ import '../../services/tts_service.dart';
 class CheckpointPopover extends StatefulWidget {
   final Checkpoint checkpoint;
   final int totalDurationSeconds;
+  final double volume;
   final ValueChanged<Checkpoint> onUpdated;
   final VoidCallback onDeleted;
 
@@ -14,6 +15,7 @@ class CheckpointPopover extends StatefulWidget {
     super.key,
     required this.checkpoint,
     required this.totalDurationSeconds,
+    this.volume = 0.8,
     required this.onUpdated,
     required this.onDeleted,
   });
@@ -23,6 +25,7 @@ class CheckpointPopover extends StatefulWidget {
     BuildContext context, {
     required Checkpoint checkpoint,
     required int totalDurationSeconds,
+    double volume = 0.8,
     required ValueChanged<Checkpoint> onUpdated,
     required VoidCallback onDeleted,
   }) {
@@ -31,6 +34,7 @@ class CheckpointPopover extends StatefulWidget {
       builder: (ctx) => CheckpointPopover(
         checkpoint: checkpoint,
         totalDurationSeconds: totalDurationSeconds,
+        volume: volume,
         onUpdated: onUpdated,
         onDeleted: onDeleted,
       ),
@@ -83,13 +87,13 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
   void _testAudio() {
     final text = _textController.text.trim();
     final speakText = text.isNotEmpty ? text : '这是一条测试播报';
-    _chimeService.playChime(_chimeSound);
+    _chimeService.playChime(_chimeSound, volume: widget.volume);
     final delay = _chimeSound != ChimeSoundType.none
         ? const Duration(milliseconds: 700)
         : Duration.zero;
     Future.delayed(delay, () {
       if (mounted) {
-        _ttsService.speak(speakText);
+        _ttsService.speak(speakText, volume: widget.volume);
       }
     });
   }
