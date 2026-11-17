@@ -81,6 +81,11 @@ void main() {
 
       expect(find.text('节点设置'), findsOneWidget);
       expect(find.text('原播报内容'), findsOneWidget);
+      expect(find.text('测试声音 (试听播报)'), findsOneWidget);
+
+      // 点击测试声音按钮
+      await tester.tap(find.text('测试声音 (试听播报)'));
+      await tester.pumpAndSettle();
 
       // 输入新内容
       await tester.enterText(find.byType(TextField), '新的节点文案');

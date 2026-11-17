@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/checkpoint.dart';
+import '../../services/audio_chime_service.dart';
+import '../../services/tts_service.dart';
 
 /// 多节点播报配置弹窗面板
 class CheckpointListSheet extends StatefulWidget {
@@ -20,6 +22,13 @@ class CheckpointListSheet extends StatefulWidget {
 
 class _CheckpointListSheetState extends State<CheckpointListSheet> {
   late List<Checkpoint> _list;
+  final AudioChimeService _chimeService = AudioChimeService();
+  final TtsService _ttsService = TtsService();
+
+  void _testAudio(Checkpoint cp) {
+    _chimeService.playChime(cp.chimeSound);
+    _ttsService.speak(cp.announcementText);
+  }
 
   @override
   void initState() {
@@ -68,6 +77,17 @@ class _CheckpointListSheetState extends State<CheckpointListSheet> {
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.volume_up, size: 18),
+              label: const Text('试听此文案语音'),
+              onPressed: () {
+                final text = textController.text.trim();
+                final speakText = text.isNotEmpty ? text : '这是一条测试播报';
+                _chimeService.playChime(ChimeSoundType.gentleBell);
+                _ttsService.speak(speakText);
+              },
             ),
           ],
         ),
@@ -168,18 +188,10 @@ class _CheckpointListSheetState extends State<CheckpointListSheet> {
                             horizontal: 16,
                             vertical: 4,
                           ),
-                          leading: CircleAvatar(
-                            radius: 18,
-                            backgroundColor: cp.isEnabled
-                                ? theme.colorScheme.primaryContainer
-                                : theme.colorScheme.surfaceContainerHighest,
-                            child: Icon(
-                              Icons.volume_up,
-                              size: 18,
-                              color: cp.isEnabled
-                                  ? theme.colorScheme.onPrimaryContainer
-                                  : theme.colorScheme.outline,
-                            ),
+                          leading: IconButton.filledTonal(
+                            icon: const Icon(Icons.volume_up, size: 18),
+                            tooltip: '测试声音',
+                            onPressed: () => _testAudio(cp),
                           ),
                           title: Text(
                             cp.announcementText,

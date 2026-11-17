@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/checkpoint.dart';
+import '../../services/audio_chime_service.dart';
+import '../../services/tts_service.dart';
 
 /// 节点轻量编辑卡片弹窗
 class CheckpointPopover extends StatefulWidget {
@@ -44,6 +46,9 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
   late bool _isEnabled;
   late ChimeSoundType _chimeSound;
 
+  final AudioChimeService _chimeService = AudioChimeService();
+  final TtsService _ttsService = TtsService();
+
   @override
   void initState() {
     super.initState();
@@ -68,6 +73,13 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
     } else {
       return '进行至 $formatted 处触发';
     }
+  }
+
+  void _testAudio() {
+    final text = _textController.text.trim();
+    final speakText = text.isNotEmpty ? text : '这是一条测试播报';
+    _chimeService.playChime(_chimeSound);
+    _ttsService.speak(speakText);
   }
 
   void _saveChanges() {
@@ -230,7 +242,13 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
                 }
               },
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.volume_up, size: 18),
+              label: const Text('测试声音 (试听播报)'),
+              onPressed: _testAudio,
+            ),
+            const SizedBox(height: 16),
             // 底部操作按钮
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
