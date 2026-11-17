@@ -28,15 +28,19 @@ class TtsService {
       await _flutterTts.setVolume(0.8); // 柔和弱提醒音量
       await _flutterTts.setPitch(1.0);
 
-      // 设置 iOS 后台音频混音分类（允许混音闪避）
-      await _flutterTts.setIosAudioCategory(
-        IosTextToSpeechAudioCategory.ambient,
-        [
-          IosTextToSpeechAudioCategoryOptions.mixWithOthers,
-          IosTextToSpeechAudioCategoryOptions.duckOthers,
-        ],
-        IosTextToSpeechAudioMode.voicePrompt,
-      );
+      // 设置 iOS 后台音频混音分类（允许混音闪避，仅限原生移动端）
+      if (!kIsWeb) {
+        try {
+          await _flutterTts.setIosAudioCategory(
+            IosTextToSpeechAudioCategory.ambient,
+            [
+              IosTextToSpeechAudioCategoryOptions.mixWithOthers,
+              IosTextToSpeechAudioCategoryOptions.duckOthers,
+            ],
+            IosTextToSpeechAudioMode.voicePrompt,
+          );
+        } catch (_) {}
+      }
 
       _flutterTts.setStartHandler(() {
         _isSpeaking = true;
