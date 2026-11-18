@@ -47,9 +47,12 @@ class DialMarkerHelper {
 
       final mins = cp.offsetSeconds ~/ 60;
       final secs = cp.offsetSeconds % 60;
-      final label = secs == 0
+      final timeStr = secs == 0
           ? '${mins}m'
           : '$mins:${secs.toString().padLeft(2, '0')}';
+      // 区分正向进行 (▶) 与倒计剩余 (⏳)
+      final prefix = cp.triggerType == CheckpointTriggerType.elapsed ? '▶ ' : '⏳ ';
+      final label = '$prefix$timeStr';
 
       rawList.add(DialMarkerInfo(
         checkpoint: cp,

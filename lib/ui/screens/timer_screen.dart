@@ -330,13 +330,37 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            // 时长快速选择预设与自定义滚轮入口
+            // 时长快速选择预设与常驻首位的自定义入口
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
+                    // 1. 常驻最左侧首位的自定义入口 (确保窄屏一目了然且触手可及)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ActionChip(
+                        avatar: const Icon(Icons.tune, size: 16),
+                        label: const Text('自定义...'),
+                        onPressed: _status == TimerStatus.running
+                            ? null
+                            : _openDurationPicker,
+                      ),
+                    ),
+                    // 2. 当前若是自定义非标准分钟，紧随其后高亮显示
+                    if (isCustomDuration)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          selected: true,
+                          label: Text('$currentMinutes 分钟'),
+                          onSelected: _status == TimerStatus.running
+                              ? null
+                              : (_) => _openDurationPicker(),
+                        ),
+                      ),
+                    // 3. 标准预设时长快捷药丸
                     ...standardPresets.map((mins) {
                       final isSelected = currentMinutes == mins;
                       return Padding(
@@ -350,24 +374,6 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
                         ),
                       );
                     }),
-                    if (isCustomDuration)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FilterChip(
-                          selected: true,
-                          label: Text('$currentMinutes 分钟'),
-                          onSelected: _status == TimerStatus.running
-                              ? null
-                              : (_) => _openDurationPicker(),
-                        ),
-                      ),
-                    ActionChip(
-                      avatar: const Icon(Icons.tune, size: 16),
-                      label: const Text('自定义...'),
-                      onPressed: _status == TimerStatus.running
-                          ? null
-                          : _openDurationPicker,
-                    ),
                   ],
                 ),
               ),
@@ -417,9 +423,12 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
             const Spacer(),
             // 底部操作控制面板
             Padding(
-              padding: const EdgeInsets.only(bottom: 32, left: 32, right: 32),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              padding: const EdgeInsets.only(bottom: 32, left: 24, right: 24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 380),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   // 重置按钮
                   IconButton.filledTonal(
@@ -476,6 +485,8 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
                 ],
               ),
             ),
+          ),
+        ),
           ],
         ),
       ),

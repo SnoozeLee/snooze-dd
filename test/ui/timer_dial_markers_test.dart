@@ -53,7 +53,7 @@ void main() {
       expect(m15.ratio, closeTo(0.25, 0.001));
       // -pi/2 + 0.25 * 2 * pi = 0.0
       expect(m15.angle, closeTo(0.0, 0.001));
-      expect(m15.label, '15m');
+      expect(m15.label, '⏳ 15m');
       expect(m15.showLabel, isTrue);
 
       // 验证 cp30 (50% 弧长)
@@ -61,7 +61,7 @@ void main() {
       expect(m30.ratio, closeTo(0.50, 0.001));
       // -pi/2 + 0.50 * 2 * pi = pi/2
       expect(m30.angle, closeTo(pi / 2, 0.001));
-      expect(m30.label, '30m');
+      expect(m30.label, '⏳ 30m');
       expect(m30.showLabel, isTrue);
     });
 
@@ -81,6 +81,7 @@ void main() {
       expect(markers.length, 1);
       // 剩余比例 (3600 - 600) / 3600 = 5/6 = ~0.8333
       expect(markers.first.ratio, closeTo(5 / 6, 0.001));
+      expect(markers.first.label, '▶ 10m');
     });
 
     test('calculateMarkers suppresses overlapping labels when angle difference < 15 degrees', () {

@@ -54,13 +54,13 @@ class _TexturePainter extends CustomPainter {
   static List<_GrainPoint> _generateGrainPoints() {
     final list = <_GrainPoint>[];
     final random = Random(42); // 固定种子以保证渲染一致性
-    // 生成覆盖 256x256 单元格的确定性微颗粒
-    for (int i = 0; i < 320; i++) {
+    // 生成覆盖 256x256 单元格的确定性微颗粒 (增强可见度与自然手感)
+    for (int i = 0; i < 340; i++) {
       list.add(_GrainPoint(
         dx: random.nextDouble() * 256.0,
         dy: random.nextDouble() * 256.0,
-        radius: 0.5 + random.nextDouble() * 0.8,
-        alphaFactor: 0.4 + random.nextDouble() * 0.6,
+        radius: 0.9 + random.nextDouble() * 0.9,
+        alphaFactor: 0.5 + random.nextDouble() * 0.5,
       ));
     }
     return list;
@@ -75,22 +75,22 @@ class _TexturePainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
 
     if (style == TextureStyle.dots) {
-      // 精密几何打孔点阵 (Braun / Teenage Engineering 风格)
+      // 精密几何打孔点阵 (加粗加深至清晰笃定)
       const spacing = 16.0;
-      final dotAlpha = isDark ? 0.08 : 0.06;
+      final dotAlpha = isDark ? 0.13 : 0.10;
       paint.color = particleColor.withValues(alpha: dotAlpha);
 
       for (double x = spacing / 2; x < size.width; x += spacing) {
         for (double y = spacing / 2; y < size.height; y += spacing) {
-          canvas.drawCircle(Offset(x, y), 0.75, paint);
+          canvas.drawCircle(Offset(x, y), 1.05, paint);
         }
       }
       return;
     }
 
     if (style == TextureStyle.grain) {
-      // 和纸 / 哑光砂石微粒
-      final baseAlpha = isDark ? 0.045 : 0.035;
+      // 和纸 / 哑光砂石微粒 (适度加深至 8%~12%，维持零渐变高级感)
+      final baseAlpha = isDark ? 0.11 : 0.085;
       const tileSize = 256.0;
 
       for (double tileX = 0; tileX < size.width; tileX += tileSize) {
@@ -100,7 +100,7 @@ class _TexturePainter extends CustomPainter {
             final y = tileY + pt.dy;
             if (x < size.width && y < size.height) {
               paint.color = particleColor.withValues(
-                alpha: (baseAlpha * pt.alphaFactor).clamp(0.01, 0.08),
+                alpha: (baseAlpha * pt.alphaFactor).clamp(0.04, 0.14),
               );
               canvas.drawCircle(Offset(x, y), pt.radius, paint);
             }
