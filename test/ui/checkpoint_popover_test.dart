@@ -196,5 +196,64 @@ void main() {
       expect(createdCp!.triggerType, CheckpointTriggerType.elapsed);
       expect(createdCp!.announcementText, '专注进行到五分钟啦');
     });
+
+    testWidgets('Auto update announcement text when time changes if not manually edited', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () {
+                  CheckpointPopover.show(
+                    context,
+                    checkpoint: null,
+                    totalDurationSeconds: 1500, // 25分钟
+                    onSaved: (c) {},
+                  );
+                },
+                child: const Text('打开Popover'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('打开Popover'));
+      await tester.pumpAndSettle();
+
+      // 默认5分钟，文案为"还有五分钟"
+      final textFieldFinder = find.byType(TextField);
+      expect(tester.widget<TextField>(textFieldFinder).controller?.text, '还有五分钟');
+
+      // 切换到3分钟下拉项
+      await tester.tap(find.byType(DropdownButtonFormField<int>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('剩余 3 分钟').last);
+      await tester.pumpAndSettle();
+
+      // 文案自动更新为"还有三分钟"
+      expect(tester.widget<TextField>(textFieldFinder).controller?.text, '还有三分钟');
+
+      // 切换到"正计进行"
+      await tester.tap(find.text('正计进行'));
+      await tester.pumpAndSettle();
+
+      // 文案自动更新为"已经进行三分钟"
+      expect(tester.widget<TextField>(textFieldFinder).controller?.text, '已经进行三分钟');
+
+      // 用户手动输入自定义文案
+      await tester.enterText(textFieldFinder, '喝水时间到');
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(textFieldFinder).controller?.text, '喝水时间到');
+
+      // 再次切换到2分钟下拉项
+      await tester.tap(find.byType(DropdownButtonFormField<int>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('进行至 2 分钟').last);
+      await tester.pumpAndSettle();
+
+      // 文案保持用户自定义内容，不被覆盖
+      expect(tester.widget<TextField>(textFieldFinder).controller?.text, '喝水时间到');
+    });
   });
 }

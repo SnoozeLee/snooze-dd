@@ -55,24 +55,40 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
   late ChimeSoundType _chimeSound;
   late int _offsetMinutes;
   late CheckpointTriggerType _triggerType;
+  bool _isTextManuallyEdited = false;
 
   final AudioChimeService _chimeService = AudioChimeService();
   final TtsService _ttsService = TtsService();
 
   bool get isAddMode => widget.checkpoint == null;
 
+  static String _numberToChinese(int n) {
+    if (n == 2) return '两';
+    const digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+    if (n >= 0 && n <= 10) return digits[n];
+    if (n < 20) return '十${digits[n % 10]}';
+    if (n < 100) {
+      final tens = digits[n ~/ 10];
+      final ones = n % 10 == 0 ? '' : digits[n % 10];
+      return '$tens十$ones';
+    }
+    return n.toString();
+  }
+
+  static String _generateDefaultText(int minutes, CheckpointTriggerType type) {
+    final chineseNum = _numberToChinese(minutes);
+    if (type == CheckpointTriggerType.remaining) {
+      return '还有$chineseNum分钟';
+    } else {
+      return '已经进行$chineseNum分钟';
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _triggerType =
         widget.checkpoint?.triggerType ?? CheckpointTriggerType.remaining;
-
-    final defaultText = _triggerType == CheckpointTriggerType.remaining
-        ? '还有五分钟'
-        : '已经进行五分钟';
-    _textController = TextEditingController(
-      text: widget.checkpoint?.announcementText ?? defaultText,
-    );
 
     _isEnabled = widget.checkpoint?.isEnabled ?? true;
     _chimeSound = widget.checkpoint?.chimeSound ?? ChimeSoundType.gentleBell;
@@ -84,6 +100,19 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
         ? (widget.checkpoint!.offsetSeconds / 60).round()
         : 5;
     _offsetMinutes = initialMins.clamp(1, maxMins);
+
+    final expectedDefaultText =
+        _generateDefaultText(_offsetMinutes, _triggerType);
+    final initialText = widget.checkpoint?.announcementText;
+    if (initialText == null ||
+        initialText.isEmpty ||
+        initialText == expectedDefaultText) {
+      _textController = TextEditingController(text: expectedDefaultText);
+      _isTextManuallyEdited = false;
+    } else {
+      _textController = TextEditingController(text: initialText);
+      _isTextManuallyEdited = true;
+    }
   }
 
   @override
@@ -269,15 +298,16 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
                       ),
                       const SizedBox(height: 8),
                       SegmentedButton<CheckpointTriggerType>(
+                        showSelectedIcon: false,
                         segments: const [
-                          ButtonSegment(
-                            value: CheckpointTriggerType.remaining,
-                            label: Text('倒计剩余'),
-                            icon: Icon(Icons.timer_outlined, size: 16),
-                          ),
                           ButtonSegment(
                             value: CheckpointTriggerType.elapsed,
                             label: Text('正计进行'),
+                            icon: Icon(Icons.timer_outlined, size: 16),
+                          ),
+                          ButtonSegment(
+                            value: CheckpointTriggerType.remaining,
+                            label: Text('倒计剩余'),
                             icon: Icon(Icons.hourglass_top, size: 16),
                           ),
                         ],
@@ -287,16 +317,9 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
                             final newType = set.first;
                             if (newType != _triggerType) {
                               _triggerType = newType;
-                              if (isAddMode) {
-                                if (_triggerType ==
-                                        CheckpointTriggerType.elapsed &&
-                                    _textController.text == '还有五分钟') {
-                                  _textController.text = '已经进行五分钟';
-                                } else if (_triggerType ==
-                                        CheckpointTriggerType.remaining &&
-                                    _textController.text == '已经进行五分钟') {
-                                  _textController.text = '还有五分钟';
-                                }
+                              if (!_isTextManuallyEdited) {
+                                _textController.text =
+                                    _generateDefaultText(_offsetMinutes, _triggerType);
                               }
                             }
                           });
@@ -334,8 +357,8 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
                             value: m,
                             child: Text(
                               _triggerType == CheckpointTriggerType.remaining
-                                  ? '剩余 $m 分钟'
-                                  : '进行至 $m 分钟',
+                                   ? '剩余 $m 分钟'
+                                   : '进行至 $m 分钟',
                             ),
                           );
                         }).toList(),
@@ -343,6 +366,10 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
                           if (val != null) {
                             setState(() {
                               _offsetMinutes = val;
+                              if (!_isTextManuallyEdited) {
+                                _textController.text =
+                                    _generateDefaultText(_offsetMinutes, _triggerType);
+                              }
                             });
                           }
                         },
@@ -360,6 +387,15 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
                       const SizedBox(height: 8),
                       TextField(
                         controller: _textController,
+                        onChanged: (val) {
+                          final curDefault =
+                              _generateDefaultText(_offsetMinutes, _triggerType);
+                          if (val.trim() == curDefault || val.trim().isEmpty) {
+                            _isTextManuallyEdited = false;
+                          } else {
+                            _isTextManuallyEdited = true;
+                          }
+                        },
                         decoration: InputDecoration(
                           border: const OutlineInputBorder(),
                           isDense: true,
