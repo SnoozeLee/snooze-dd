@@ -105,7 +105,7 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
     final speakText = text.isNotEmpty ? text : '这是一条测试播报';
     _chimeService.playChime(_chimeSound, volume: widget.volume);
     final delay = _chimeSound != ChimeSoundType.none
-        ? const Duration(milliseconds: 700)
+        ? const Duration(milliseconds: 800)
         : Duration.zero;
     Future.delayed(delay, () {
       if (mounted) {

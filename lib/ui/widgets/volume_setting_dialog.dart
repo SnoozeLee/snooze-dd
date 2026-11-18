@@ -60,7 +60,7 @@ class _VolumeSettingDialogState extends State<VolumeSettingDialog> {
   void _testVolume() {
     // 立即以当前设置的等级试听铃声与语音
     _chimeService.playChime(ChimeSoundType.gentleBell, volume: _level.scalar);
-    Future.delayed(const Duration(milliseconds: 700), () {
+    Future.delayed(const Duration(milliseconds: 800), () {
       if (mounted) {
         _ttsService.speak(
           '当前为第 ${_level.level} 级音量',

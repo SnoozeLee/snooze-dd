@@ -13,6 +13,30 @@ class AudioChimeService {
   Future<void> init() async {
     try {
       await _player.setReleaseMode(ReleaseMode.stop);
+      
+      // 设置全局音频播放上下文，启用混音闪避，防止独占音频焦点导致后续 TTS 无法出声
+      if (!kIsWeb) {
+        try {
+          await AudioPlayer.global.setAudioContext(
+            AudioContext(
+              iOS: AudioContextIOS(
+                category: AVAudioSessionCategory.ambient,
+                options: const {
+                  AVAudioSessionOptions.mixWithOthers,
+                  AVAudioSessionOptions.duckOthers,
+                },
+              ),
+              android: const AudioContextAndroid(
+                isSpeakerphoneOn: true,
+                stayAwake: true,
+                contentType: AndroidContentType.sonification,
+                usageType: AndroidUsageType.assistanceSonification,
+                audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+              ),
+            ),
+          );
+        } catch (_) {}
+      }
     } catch (e) {
       debugPrint('AudioChimeService init error: $e');
     }
@@ -39,7 +63,7 @@ class AudioChimeService {
 
     try {
       await _player.stop();
-      await _player.setVolume(volume);
+      await _player.setVolume(volume.clamp(0.0, 1.0));
       await _player.play(AssetSource(fileName));
     } catch (e) {
       debugPrint('Failed to play chime: $e');

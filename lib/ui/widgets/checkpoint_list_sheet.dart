@@ -29,7 +29,7 @@ class _CheckpointListSheetState extends State<CheckpointListSheet> {
   void _testAudio(Checkpoint cp) {
     _chimeService.playChime(cp.chimeSound);
     final delay = cp.chimeSound != ChimeSoundType.none
-        ? const Duration(milliseconds: 700)
+        ? const Duration(milliseconds: 800)
         : Duration.zero;
     Future.delayed(delay, () {
       if (mounted) {

@@ -3,6 +3,7 @@ import '../../core/timer_engine.dart';
 import '../../models/checkpoint.dart';
 import '../../models/timer_session.dart';
 import '../../services/audio_chime_service.dart';
+import '../../services/background_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/tts_service.dart';
 import '../theme/theme_controller.dart';
@@ -28,6 +29,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
 
   final TtsService _ttsService = TtsService();
   final AudioChimeService _chimeService = AudioChimeService();
+  final BackgroundService _backgroundService = BackgroundService();
 
   int _remainingSeconds = 0;
   double _progress = 0.0;
@@ -49,11 +51,31 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
           _remainingSeconds = remaining;
           _progress = _engine.progress;
         });
+        if (_status == TimerStatus.running) {
+          final m = (remaining ~/ 60).toString().padLeft(2, '0');
+          final s = (remaining % 60).toString().padLeft(2, '0');
+          _backgroundService.update(
+            title: 'SnoozeDD 专注中 ($m:$s)',
+            content: _latestAnnouncement.isNotEmpty
+                ? '上一节点：$_latestAnnouncement'
+                : '保持专注，稍后按节点提醒...',
+          );
+        }
       },
       onStatusChanged: (status) {
         setState(() {
           _status = status;
         });
+        if (status == TimerStatus.running) {
+          final m = (_remainingSeconds ~/ 60).toString().padLeft(2, '0');
+          final s = (_remainingSeconds % 60).toString().padLeft(2, '0');
+          _backgroundService.start(
+            title: 'SnoozeDD 专注中 ($m:$s)',
+            content: '保持专注，稍后按节点提醒...',
+          );
+        } else {
+          _backgroundService.stop();
+        }
       },
       onCheckpointTriggered: _handleCheckpointTriggered,
       onCompleted: _handleCompleted,
@@ -125,6 +147,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   }
 
   void _handleCompleted() {
+    _backgroundService.stop();
     setState(() {
       _latestAnnouncement = '本次专注已完成';
     });
@@ -289,6 +312,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _backgroundService.stop();
     WidgetsBinding.instance.removeObserver(this);
     _engine.dispose();
     _chimeService.dispose();
@@ -439,6 +463,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
                         ? null
                         : () {
                             _engine.reset();
+                            _backgroundService.stop();
                             _ttsService.stop();
                             setState(() {
                               _latestAnnouncement = '';
