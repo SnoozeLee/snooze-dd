@@ -53,6 +53,27 @@ class Checkpoint {
     );
   }
 
+  /// 计算在给定总时长下的实际触发时间点（从开始流逝的秒数，用于执行时序排序）
+  int getTriggerElapsedSeconds(int totalDurationSeconds) {
+    if (triggerType == CheckpointTriggerType.elapsed) {
+      return offsetSeconds;
+    } else {
+      return (totalDurationSeconds - offsetSeconds).clamp(0, totalDurationSeconds);
+    }
+  }
+
+  /// 格式化时间触发展示标签（如：'已进行至 5 分钟' 或 '剩余 10 分钟'）
+  String get formattedTriggerLabel {
+    final mins = offsetSeconds ~/ 60;
+    final secs = offsetSeconds % 60;
+    final prefix = triggerType == CheckpointTriggerType.remaining ? '剩余' : '已进行至';
+    if (secs == 0) {
+      return '$prefix $mins 分钟';
+    } else {
+      return '$prefix $mins 分 $secs 秒';
+    }
+  }
+
   Checkpoint copyWith({
     String? id,
     int? offsetSeconds,

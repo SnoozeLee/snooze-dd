@@ -28,6 +28,36 @@ void main() {
       expect(modified.offsetSeconds, 120);
     });
 
+    test('Checkpoint formattedTriggerLabel and getTriggerElapsedSeconds', () {
+      const totalDuration = 1500; // 25 分钟
+
+      // 1. 剩余时间节点 (20分钟处触发)
+      final cpRemaining = Checkpoint.create(
+        offsetSeconds: 300, // 剩余 5 分钟
+        triggerType: CheckpointTriggerType.remaining,
+        announcementText: '剩余5分钟',
+      );
+      expect(cpRemaining.formattedTriggerLabel, '剩余 5 分钟');
+      expect(cpRemaining.getTriggerElapsedSeconds(totalDuration), 1200); // 1500 - 300 = 1200秒 (第20分钟)
+
+      // 2. 正向已进行节点 (5分钟处触发)
+      final cpElapsed = Checkpoint.create(
+        offsetSeconds: 300, // 进行到 5 分钟
+        triggerType: CheckpointTriggerType.elapsed,
+        announcementText: '已进行5分钟',
+      );
+      expect(cpElapsed.formattedTriggerLabel, '已进行至 5 分钟');
+      expect(cpElapsed.getTriggerElapsedSeconds(totalDuration), 300); // 第5分钟触发
+
+      // 3. 含秒数情况
+      final cpSecs = Checkpoint.create(
+        offsetSeconds: 150, // 2分30秒
+        triggerType: CheckpointTriggerType.elapsed,
+        announcementText: '测试',
+      );
+      expect(cpSecs.formattedTriggerLabel, '已进行至 2 分 30 秒');
+    });
+
     test('TimerSession defaultPomodoro and serialization', () {
       final session = TimerSession.defaultPomodoro();
 
