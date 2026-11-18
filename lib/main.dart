@@ -1,35 +1,52 @@
 import 'package:flutter/material.dart';
 import 'ui/screens/timer_screen.dart';
+import 'ui/theme/theme_controller.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const SnoozeDdApp());
+  final themeController = ThemeController();
+  await themeController.init();
+  runApp(SnoozeDdApp(themeController: themeController));
 }
 
-class SnoozeDdApp extends StatelessWidget {
-  const SnoozeDdApp({super.key});
+class SnoozeDdApp extends StatefulWidget {
+  final ThemeController? themeController;
+
+  const SnoozeDdApp({super.key, this.themeController});
+
+  @override
+  State<SnoozeDdApp> createState() => _SnoozeDdAppState();
+}
+
+class _SnoozeDdAppState extends State<SnoozeDdApp> {
+  late final ThemeController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = widget.themeController ?? ThemeController();
+    if (widget.themeController == null) {
+      _controller.init();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SnoozeDD',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0F766E), // 雅致专注绿 (Calm Teal)
-          brightness: Brightness.light,
-        ),
+    return ThemeScope(
+      controller: _controller,
+      child: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) {
+          return MaterialApp(
+            title: 'SnoozeDD',
+            debugShowCheckedModeBanner: false,
+            theme: _controller.lightTheme,
+            darkTheme: _controller.darkTheme,
+            themeMode: _controller.themeMode,
+            home: const TimerScreen(),
+          );
+        },
       ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0F766E),
-          brightness: Brightness.dark,
-        ),
-      ),
-      themeMode: ThemeMode.system,
-      home: const TimerScreen(),
     );
   }
 }

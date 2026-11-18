@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../models/checkpoint.dart';
+import '../theme/app_theme.dart';
 
 /// 节点在表盘上的几何与展示信息
 class DialMarkerInfo {
@@ -168,7 +169,14 @@ class TimerDial extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
+    final dialExt = theme.extension<DialThemeExtension>();
+
+    final primaryColor = dialExt?.primaryArcColor ?? theme.colorScheme.primary;
+    final trackColor = dialExt?.trackColor ?? theme.colorScheme.outlineVariant;
+    final accentColor = dialExt?.accentMarkerColor ?? theme.colorScheme.secondary;
+    final badgeColor = dialExt?.markerBadgeColor ?? theme.colorScheme.surfaceContainerHighest;
+    final badgeTextColor = dialExt?.markerTextColor ?? theme.colorScheme.onSurface;
+
     const dialSize = 280.0;
 
     final markers = DialMarkerHelper.calculateMarkers(
@@ -186,37 +194,43 @@ class TimerDial extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // CustomPaint 绘制背景弧、倒计进度弧和各节点标记
+              // CustomPaint 绘制高对比背景弧、倒计进度弧和各节点标记
               CustomPaint(
                 size: const Size(dialSize, dialSize),
                 painter: _DialPainter(
                   progress: progress,
                   primaryColor: primaryColor,
-                  trackColor: primaryColor.withValues(alpha: 0.12),
+                  trackColor: trackColor,
+                  accentColor: accentColor,
+                  badgeColor: badgeColor,
+                  badgeTextColor: badgeTextColor,
                   markers: markers,
                   triggeredIds: triggeredCheckpointIds,
                   textTheme: theme.textTheme,
                 ),
               ),
-              // 中间时间大字
+              // 中间时间大字：加粗等宽，高对比清晰易读
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     _formatTime(remainingSeconds),
                     style: theme.textTheme.displayMedium?.copyWith(
-                      fontWeight: FontWeight.w300,
-                      letterSpacing: 2,
+                      fontSize: 54,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2.0,
                       color: theme.colorScheme.onSurface,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
                     statusText.isNotEmpty
                         ? statusText
                         : (isRunning ? '专注进行中' : '点击开始'),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
                       letterSpacing: 1.2,
                     ),
                   ),
@@ -234,6 +248,9 @@ class _DialPainter extends CustomPainter {
   final double progress;
   final Color primaryColor;
   final Color trackColor;
+  final Color accentColor;
+  final Color badgeColor;
+  final Color badgeTextColor;
   final List<DialMarkerInfo> markers;
   final Set<String> triggeredIds;
   final TextTheme textTheme;
@@ -242,6 +259,9 @@ class _DialPainter extends CustomPainter {
     required this.progress,
     required this.primaryColor,
     required this.trackColor,
+    required this.accentColor,
+    required this.badgeColor,
+    required this.badgeTextColor,
     required this.markers,
     required this.triggeredIds,
     required this.textTheme,
@@ -251,9 +271,9 @@ class _DialPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     const radius = 105.0;
-    const strokeWidth = 10.0;
+    const strokeWidth = 11.0;
 
-    // 1. 绘制底轨圆环
+    // 1. 绘制底轨圆环 (实色高对比底轨，无渐变)
     final trackPaint = Paint()
       ..color = trackColor
       ..strokeWidth = strokeWidth
@@ -262,7 +282,7 @@ class _DialPainter extends CustomPainter {
 
     canvas.drawCircle(center, radius, trackPaint);
 
-    // 2. 绘制倒计时进度弧
+    // 2. 绘制倒计时进度弧 (饱满浓郁实色弧线，两端圆润)
     final progressPaint = Paint()
       ..color = primaryColor
       ..strokeWidth = strokeWidth
@@ -280,7 +300,7 @@ class _DialPainter extends CustomPainter {
       );
     }
 
-    // 3. 绘制节点标记点及标签
+    // 3. 绘制节点标记点及防重叠高对比标签
     for (final marker in markers) {
       final isTriggered = triggeredIds.contains(marker.checkpoint.id);
       final isEnabled = marker.checkpoint.isEnabled;
@@ -291,23 +311,23 @@ class _DialPainter extends CustomPainter {
 
       // 节点圆点样式
       Color dotColor;
-      Color borderColor = Colors.white;
+      Color borderColor = trackColor;
 
       if (!isEnabled) {
-        dotColor = primaryColor.withValues(alpha: 0.25);
-        borderColor = Colors.white54;
+        dotColor = trackColor;
+        borderColor = trackColor.withValues(alpha: 0.5);
       } else if (isTriggered) {
         dotColor = Colors.grey.shade400;
-        borderColor = Colors.grey.shade200;
+        borderColor = badgeColor;
       } else {
-        dotColor = primaryColor;
-        borderColor = Colors.white;
+        dotColor = accentColor;
+        borderColor = badgeTextColor;
       }
 
-      // 绘制白色边框垫底
+      // 绘制外圈高对比隔离环
       canvas.drawCircle(
         markerCenter,
-        7.0,
+        7.5,
         Paint()
           ..color = borderColor
           ..style = PaintingStyle.fill,
@@ -316,17 +336,18 @@ class _DialPainter extends CustomPainter {
       // 绘制节点内圆
       canvas.drawCircle(
         markerCenter,
-        5.0,
+        5.2,
         Paint()
           ..color = dotColor
           ..style = PaintingStyle.fill,
       );
 
-      // 若已触发，绘制小浅勾符号
+      // 若已触发，绘制小勾标记
       if (isTriggered && isEnabled) {
         final tickPaint = Paint()
           ..color = Colors.white
           ..strokeWidth = 1.5
+          ..strokeCap = StrokeCap.round
           ..style = PaintingStyle.stroke;
         final p = Path()
           ..moveTo(markerCenter.dx - 2.5, markerCenter.dy)
@@ -335,19 +356,20 @@ class _DialPainter extends CustomPainter {
         canvas.drawPath(p, tickPaint);
       }
 
-      // 绘制简短时间标签 (如 5m, 10m)
+      // 绘制带有实体小标牌的高清时间标签 (如 5m, 10m)
       if (marker.showLabel) {
-        const labelRadius = radius + 20.0;
+        const labelRadius = radius + 22.0;
         final labelX = center.dx + labelRadius * cos(marker.angle);
         final labelY = center.dy + labelRadius * sin(marker.angle);
+        final labelCenter = Offset(labelX, labelY);
 
         final labelSpan = TextSpan(
           text: marker.label,
           style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
             color: isEnabled
-                ? (isTriggered ? Colors.grey : primaryColor)
+                ? (isTriggered ? Colors.grey.shade500 : badgeTextColor)
                 : Colors.grey.shade400,
             decoration: isEnabled ? null : TextDecoration.lineThrough,
           ),
@@ -357,6 +379,29 @@ class _DialPainter extends CustomPainter {
           text: labelSpan,
           textDirection: TextDirection.ltr,
         )..layout();
+
+        // 绘制微圆角标签标牌背景 (实色防重叠背景)
+        final badgeRect = Rect.fromCenter(
+          center: labelCenter,
+          width: textPainter.width + 10,
+          height: textPainter.height + 4,
+        );
+        final badgeRRect = RRect.fromRectAndRadius(badgeRect, const Radius.circular(6));
+
+        canvas.drawRRect(
+          badgeRRect,
+          Paint()
+            ..color = badgeColor
+            ..style = PaintingStyle.fill,
+        );
+
+        canvas.drawRRect(
+          badgeRRect,
+          Paint()
+            ..color = trackColor.withValues(alpha: 0.6)
+            ..strokeWidth = 1
+            ..style = PaintingStyle.stroke,
+        );
 
         final textOffset = Offset(
           labelX - textPainter.width / 2,
@@ -371,6 +416,9 @@ class _DialPainter extends CustomPainter {
   bool shouldRepaint(covariant _DialPainter oldDelegate) {
     return oldDelegate.progress != progress ||
         oldDelegate.primaryColor != primaryColor ||
+        oldDelegate.trackColor != trackColor ||
+        oldDelegate.accentColor != accentColor ||
+        oldDelegate.badgeColor != badgeColor ||
         oldDelegate.markers != markers ||
         oldDelegate.triggeredIds != triggeredIds;
   }

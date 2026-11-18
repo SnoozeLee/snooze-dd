@@ -5,9 +5,12 @@ import '../../models/timer_session.dart';
 import '../../services/audio_chime_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/tts_service.dart';
+import '../theme/theme_controller.dart';
 import '../widgets/checkpoint_list_sheet.dart';
 import '../widgets/checkpoint_popover.dart';
 import '../widgets/duration_picker_sheet.dart';
+import '../widgets/texture_background.dart';
+import '../widgets/theme_setting_dialog.dart';
 import '../widgets/timer_dial.dart';
 import '../widgets/volume_setting_dialog.dart';
 
@@ -305,6 +308,11 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: const Icon(Icons.palette_outlined),
+            tooltip: '风格与微质感',
+            onPressed: () => ThemeSettingDialog.show(context),
+          ),
+          IconButton(
             icon: Icon(_getVolumeIcon(_session.volume)),
             tooltip: '应用内音量设置 (${VolumeLevel.fromScalar(_session.volume).label})',
             onPressed: _openVolumeDialog,
@@ -316,7 +324,9 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
-      body: SafeArea(
+      body: TextureBackground(
+        style: ThemeScope.of(context).textureStyle,
+        child: SafeArea(
         child: Column(
           children: [
             const SizedBox(height: 20),
@@ -469,6 +479,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
