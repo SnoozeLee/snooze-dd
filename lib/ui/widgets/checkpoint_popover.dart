@@ -3,39 +3,43 @@ import '../../models/checkpoint.dart';
 import '../../services/audio_chime_service.dart';
 import '../../services/tts_service.dart';
 
-/// 节点轻量编辑卡片弹窗
+/// 统一的节点添加与编辑配置卡片弹窗
 class CheckpointPopover extends StatefulWidget {
-  final Checkpoint checkpoint;
+  final Checkpoint? checkpoint;
   final int totalDurationSeconds;
   final double volume;
-  final ValueChanged<Checkpoint> onUpdated;
-  final VoidCallback onDeleted;
+  final ValueChanged<Checkpoint> onSaved;
+  final VoidCallback? onDeleted;
 
   const CheckpointPopover({
     super.key,
-    required this.checkpoint,
+    this.checkpoint,
     required this.totalDurationSeconds,
     this.volume = 0.8,
-    required this.onUpdated,
-    required this.onDeleted,
+    required this.onSaved,
+    this.onDeleted,
   });
 
-  /// 弹出展示节点编辑卡片
+  /// 弹出展示节点配置卡片 (checkpoint 为 null 时为添加模式，非 null 时为编辑模式)
   static Future<void> show(
     BuildContext context, {
-    required Checkpoint checkpoint,
+    Checkpoint? checkpoint,
     required int totalDurationSeconds,
     double volume = 0.8,
-    required ValueChanged<Checkpoint> onUpdated,
-    required VoidCallback onDeleted,
+    ValueChanged<Checkpoint>? onSaved,
+    ValueChanged<Checkpoint>? onUpdated,
+    VoidCallback? onDeleted,
   }) {
+    final callback = onSaved ?? onUpdated;
+    assert(callback != null, 'Either onSaved or onUpdated must be provided');
+
     return showDialog(
       context: context,
       builder: (ctx) => CheckpointPopover(
         checkpoint: checkpoint,
         totalDurationSeconds: totalDurationSeconds,
         volume: volume,
-        onUpdated: onUpdated,
+        onSaved: callback!,
         onDeleted: onDeleted,
       ),
     );
@@ -55,18 +59,30 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
   final AudioChimeService _chimeService = AudioChimeService();
   final TtsService _ttsService = TtsService();
 
+  bool get isAddMode => widget.checkpoint == null;
+
   @override
   void initState() {
     super.initState();
-    _textController =
-        TextEditingController(text: widget.checkpoint.announcementText);
-    _isEnabled = widget.checkpoint.isEnabled;
-    _chimeSound = widget.checkpoint.chimeSound;
-    _triggerType = widget.checkpoint.triggerType;
+    _triggerType =
+        widget.checkpoint?.triggerType ?? CheckpointTriggerType.remaining;
 
-    final initialMins = (widget.checkpoint.offsetSeconds / 60).round();
+    final defaultText = _triggerType == CheckpointTriggerType.remaining
+        ? '还有五分钟'
+        : '已经进行五分钟';
+    _textController = TextEditingController(
+      text: widget.checkpoint?.announcementText ?? defaultText,
+    );
+
+    _isEnabled = widget.checkpoint?.isEnabled ?? true;
+    _chimeSound = widget.checkpoint?.chimeSound ?? ChimeSoundType.gentleBell;
+
     final totalMins = widget.totalDurationSeconds ~/ 60;
     final maxMins = totalMins > 1 ? totalMins - 1 : 1;
+
+    final initialMins = widget.checkpoint != null
+        ? (widget.checkpoint!.offsetSeconds / 60).round()
+        : 5;
     _offsetMinutes = initialMins.clamp(1, maxMins);
   }
 
@@ -102,23 +118,37 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
-    final updated = widget.checkpoint.copyWith(
-      offsetSeconds: _offsetMinutes * 60,
-      triggerType: _triggerType,
-      announcementText: text,
-      isEnabled: _isEnabled,
-      chimeSound: _chimeSound,
-    );
-    widget.onUpdated(updated);
+    if (isAddMode) {
+      final newCp = Checkpoint.create(
+        offsetSeconds: _offsetMinutes * 60,
+        triggerType: _triggerType,
+        announcementText: text,
+        chimeSound: _chimeSound,
+        isEnabled: _isEnabled,
+      );
+      widget.onSaved(newCp);
+    } else {
+      final updated = widget.checkpoint!.copyWith(
+        offsetSeconds: _offsetMinutes * 60,
+        triggerType: _triggerType,
+        announcementText: text,
+        isEnabled: _isEnabled,
+        chimeSound: _chimeSound,
+      );
+      widget.onSaved(updated);
+    }
+
     Navigator.of(context).pop();
   }
 
   void _confirmDelete() {
+    if (widget.checkpoint == null) return;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('删除此节点？'),
-        content: Text('确认删除「${widget.checkpoint.announcementText}」节点？'),
+        content: Text('确认删除「${widget.checkpoint!.announcementText}」节点？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -130,7 +160,7 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
             ),
             onPressed: () {
               Navigator.of(ctx).pop();
-              widget.onDeleted();
+              widget.onDeleted?.call();
               Navigator.of(context).pop();
             },
             child: const Text('确认删除'),
@@ -145,35 +175,44 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
     final theme = Theme.of(context);
     final totalMins = widget.totalDurationSeconds ~/ 60;
     final maxM = totalMins > 1 ? totalMins - 1 : 1;
-    final minuteOptions = List<int>.generate(maxM, (i) => i + 1);
-    if (!minuteOptions.contains(_offsetMinutes)) {
-      minuteOptions.add(_offsetMinutes);
-      minuteOptions.sort();
+
+    // 智能生成分钟候选项 (优先常用刻度，再补齐当前选值)
+    final candidateSet = <int>{};
+    for (final m in [1, 2, 3, 5, 10, 15, 20, 25, 30, 45, 60]) {
+      if (m <= maxM) candidateSet.add(m);
     }
+    candidateSet.add(_offsetMinutes);
+    final minuteOptions = candidateSet.toList()..sort();
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      elevation: 6,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        width: 320,
-        child: SingleChildScrollView(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.outline, width: 1),
+      ),
+      elevation: 0,
+      backgroundColor: theme.colorScheme.surface,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380, maxHeight: 580),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 顶部标题与开关
+              // 1. 顶部标题栏 (固定在顶部)
               Row(
                 children: [
                   CircleAvatar(
                     radius: 16,
-                    backgroundColor: _isEnabled
+                    backgroundColor: (isAddMode || _isEnabled)
                         ? theme.colorScheme.primaryContainer
                         : theme.colorScheme.surfaceContainerHighest,
                     child: Icon(
-                      Icons.notifications_active,
-                      size: 16,
-                      color: _isEnabled
+                      isAddMode
+                          ? Icons.add_alarm
+                          : Icons.notifications_active,
+                      size: 18,
+                      color: (isAddMode || _isEnabled)
                           ? theme.colorScheme.onPrimaryContainer
                           : theme.colorScheme.outline,
                     ),
@@ -184,197 +223,229 @@ class _CheckpointPopoverState extends State<CheckpointPopover> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '节点设置',
+                          isAddMode ? '添加播报节点' : '节点设置',
                           style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.onSurface,
                           ),
                         ),
-                        Text(
-                          _formatTime(),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.primary,
+                        if (!isAddMode)
+                          Text(
+                            _formatTime(),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
-                  Switch(
-                    value: _isEnabled,
-                    onChanged: (val) {
-                      setState(() {
-                        _isEnabled = val;
-                      });
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // 1. 触发时间重新设置
-              Text(
-                '触发时间设置：',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  // 触发基准类型
-                  Expanded(
-                    flex: 4,
-                    child: DropdownButtonFormField<CheckpointTriggerType>(
-                      initialValue: _triggerType,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: CheckpointTriggerType.remaining,
-                          child: Text('倒计剩余'),
-                        ),
-                        DropdownMenuItem(
-                          value: CheckpointTriggerType.elapsed,
-                          child: Text('已进行至'),
-                        ),
-                      ],
+                  if (!isAddMode)
+                    Switch(
+                      value: _isEnabled,
                       onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            _triggerType = val;
-                          });
-                        }
+                        setState(() {
+                          _isEnabled = val;
+                        });
                       },
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // 分钟数选择
-                  Expanded(
-                    flex: 4,
-                    child: DropdownButtonFormField<int>(
-                      initialValue: _offsetMinutes,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                      ),
-                      items: minuteOptions.map((m) {
-                        return DropdownMenuItem<int>(
-                          value: m,
-                          child: Text('$m 分钟'),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            _offsetMinutes = val;
-                          });
-                        }
-                      },
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(height: 14),
 
-              // 2. 播报文案编辑
-              Text(
-                '语音播报文案：',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _textController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                  hintText: '输入到点播报文案',
-                ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 14),
-
-              // 3. 伴随提示音下拉
-              Text(
-                '伴随提示音：',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<ChimeSoundType>(
-                initialValue: _chimeSound,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                items: const [
-                  DropdownMenuItem(
-                    value: ChimeSoundType.gentleBell,
-                    child: Text('轻柔风铃 (Gentle Bell)'),
-                  ),
-                  DropdownMenuItem(
-                    value: ChimeSoundType.waterDrop,
-                    child: Text('清澈水滴 (Water Drop)'),
-                  ),
-                  DropdownMenuItem(
-                    value: ChimeSoundType.singingBowl,
-                    child: Text('静心颂钵 (Singing Bowl)'),
-                  ),
-                  DropdownMenuItem(
-                    value: ChimeSoundType.none,
-                    child: Text('无提示音 (仅 TTS)'),
-                  ),
-                ],
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() {
-                      _chimeSound = val;
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: 12),
-
-              // 4. 声音测试按钮
-              OutlinedButton.icon(
-                icon: const Icon(Icons.volume_up, size: 18),
-                label: const Text('测试声音 (试听播报)'),
-                onPressed: _testAudio,
-              ),
-              const SizedBox(height: 16),
-
-              // 5. 底部操作按钮
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.delete_outline,
-                        color: theme.colorScheme.error),
-                    tooltip: '删除此节点',
-                    onPressed: _confirmDelete,
-                  ),
-                  Row(
+              // 2. 表单配置区域 (自适应可滚动)
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('取消'),
+                      // 触发基准类型选择 (统一保留 SegmentedButton 倒计/正计切换风格)
+                      Text(
+                        '触发基准类型：',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: _saveChanges,
-                        child: const Text('保存'),
+                      const SizedBox(height: 8),
+                      SegmentedButton<CheckpointTriggerType>(
+                        segments: const [
+                          ButtonSegment(
+                            value: CheckpointTriggerType.remaining,
+                            label: Text('倒计剩余'),
+                            icon: Icon(Icons.timer_outlined, size: 16),
+                          ),
+                          ButtonSegment(
+                            value: CheckpointTriggerType.elapsed,
+                            label: Text('正计进行'),
+                            icon: Icon(Icons.hourglass_top, size: 16),
+                          ),
+                        ],
+                        selected: {_triggerType},
+                        onSelectionChanged: (set) {
+                          setState(() {
+                            final newType = set.first;
+                            if (newType != _triggerType) {
+                              _triggerType = newType;
+                              if (isAddMode) {
+                                if (_triggerType ==
+                                        CheckpointTriggerType.elapsed &&
+                                    _textController.text == '还有五分钟') {
+                                  _textController.text = '已经进行五分钟';
+                                } else if (_triggerType ==
+                                        CheckpointTriggerType.remaining &&
+                                    _textController.text == '已经进行五分钟') {
+                                  _textController.text = '还有五分钟';
+                                }
+                              }
+                            }
+                          });
+                        },
+                        style: SegmentedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // 触发分钟选择
+                      Text(
+                        _triggerType == CheckpointTriggerType.remaining
+                            ? '触发时间（剩余分钟）：'
+                            : '触发时间（进行至分钟）：',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<int>(
+                        initialValue: _offsetMinutes,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                        ),
+                        items: minuteOptions.map((m) {
+                          return DropdownMenuItem<int>(
+                            value: m,
+                            child: Text(
+                              _triggerType == CheckpointTriggerType.remaining
+                                  ? '剩余 $m 分钟'
+                                  : '进行至 $m 分钟',
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _offsetMinutes = val;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 14),
+
+                      // 语音播报文案
+                      Text(
+                        '自定义语音播报文案：',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _textController,
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                          hintText: isAddMode
+                              ? '如：还有五分钟，请放缓呼吸'
+                              : '输入到点播报文案',
+                        ),
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 14),
+
+                      // 伴随提示音选择
+                      Text(
+                        '伴随提示音：',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<ChimeSoundType>(
+                        initialValue: _chimeSound,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: ChimeSoundType.gentleBell,
+                            child: Text('轻柔风铃 (Gentle Bell)'),
+                          ),
+                          DropdownMenuItem(
+                            value: ChimeSoundType.waterDrop,
+                            child: Text('清澈水滴 (Water Drop)'),
+                          ),
+                          DropdownMenuItem(
+                            value: ChimeSoundType.singingBowl,
+                            child: Text('静心颂钵 (Singing Bowl)'),
+                          ),
+                          DropdownMenuItem(
+                            value: ChimeSoundType.none,
+                            child: Text('无提示音 (仅 TTS)'),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _chimeSound = val;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
+                      // 声音试听按钮
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.volume_up, size: 18),
+                        label: const Text('测试声音 (试听伴音与播报)'),
+                        onPressed: _testAudio,
                       ),
                     ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 3. 底部操作按钮 (固定在底部，无需滚动即可操作)
+              Row(
+                children: [
+                  if (!isAddMode)
+                    IconButton(
+                      icon: Icon(Icons.delete_outline,
+                          color: theme.colorScheme.error),
+                      tooltip: '删除此节点',
+                      onPressed: _confirmDelete,
+                    ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('取消'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _saveChanges,
+                    child: Text(isAddMode ? '添加' : '保存'),
                   ),
                 ],
               ),

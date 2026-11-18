@@ -45,8 +45,8 @@ void main() {
     });
   });
 
-  group('CheckpointPopover Tests', () {
-    testWidgets('Renders checkpoint details and updates text', (tester) async {
+  group('CheckpointPopover Tests (Unified Component)', () {
+    testWidgets('Edit mode renders checkpoint details, allows editing and audio test', (tester) async {
       final cp = Checkpoint.create(
         offsetSeconds: 300,
         announcementText: '原播报内容',
@@ -81,10 +81,11 @@ void main() {
 
       expect(find.text('节点设置'), findsOneWidget);
       expect(find.text('原播报内容'), findsOneWidget);
-      expect(find.text('测试声音 (试听播报)'), findsOneWidget);
+      expect(find.text('测试声音 (试听伴音与播报)'), findsOneWidget);
 
-      // 点击测试声音按钮
-      await tester.tap(find.text('测试声音 (试听播报)'));
+      // 确保可见后点击测试声音按钮
+      await tester.ensureVisible(find.text('测试声音 (试听伴音与播报)'));
+      await tester.tap(find.text('测试声音 (试听伴音与播报)'));
       await tester.pumpAndSettle();
 
       // 输入新内容
@@ -97,7 +98,7 @@ void main() {
       expect(deleted, isFalse);
     });
 
-    testWidgets('Allows changing trigger time in CheckpointPopover', (tester) async {
+    testWidgets('Edit mode allows switching trigger type via SegmentedButton', (tester) async {
       final cp = Checkpoint.create(
         offsetSeconds: 300, // 5 分钟
         triggerType: CheckpointTriggerType.remaining,
@@ -130,22 +131,70 @@ void main() {
       await tester.tap(find.text('打开Popover'));
       await tester.pumpAndSettle();
 
-      expect(find.text('触发时间设置：'), findsOneWidget);
+      expect(find.text('触发基准类型：'), findsOneWidget);
       expect(find.text('倒计剩余'), findsOneWidget);
-      expect(find.text('5 分钟'), findsOneWidget);
+      expect(find.text('正计进行'), findsOneWidget);
+      expect(find.text('剩余 5 分钟'), findsOneWidget);
 
-      // 切换时间为 10 分钟
-      await tester.tap(find.text('5 分钟'));
+      // 切换为正计进行
+      await tester.tap(find.text('正计进行'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('10 分钟').last);
-      await tester.pumpAndSettle();
+      expect(find.text('进行至 5 分钟'), findsOneWidget);
 
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
       expect(updatedCp, isNotNull);
-      expect(updatedCp!.offsetSeconds, 600); // 10 * 60
+      expect(updatedCp!.triggerType, CheckpointTriggerType.elapsed);
+      expect(updatedCp!.offsetSeconds, 300);
+    });
+
+    testWidgets('Add mode renders unified dialog and creates new checkpoint', (tester) async {
+      Checkpoint? createdCp;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () {
+                  CheckpointPopover.show(
+                    context,
+                    checkpoint: null, // 添加模式
+                    totalDurationSeconds: 1500,
+                    onSaved: (c) => createdCp = c,
+                  );
+                },
+                child: const Text('添加节点'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('添加节点'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('添加播报节点'), findsOneWidget);
+      expect(find.text('添加'), findsOneWidget);
+      expect(find.text('倒计剩余'), findsOneWidget);
+      expect(find.text('正计进行'), findsOneWidget);
+
+      // 切换为正计进行
+      await tester.tap(find.text('正计进行'));
+      await tester.pumpAndSettle();
+
+      // 输入文案
+      await tester.enterText(find.byType(TextField), '专注进行到五分钟啦');
+
+      // 点击添加按钮
+      await tester.tap(find.text('添加'));
+      await tester.pumpAndSettle();
+
+      expect(createdCp, isNotNull);
+      expect(createdCp!.triggerType, CheckpointTriggerType.elapsed);
+      expect(createdCp!.announcementText, '专注进行到五分钟啦');
     });
   });
 }
